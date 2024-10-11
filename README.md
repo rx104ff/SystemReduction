@@ -34,7 +34,7 @@ $$
 Error is computed as follows
 
 $$
-|f(s)-f^{(k)}(s)|_{H_\infty}  = f(0) - f^{(k)}(0)
+f(0) - f^{(k)}(0)
 $$
 
 ![Error_log](https://github.com/user-attachments/assets/59188097-9e94-4a9c-baba-16f4c8ca5ef5)
