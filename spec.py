@@ -1,89 +1,24 @@
 import numpy as np
-import scipy.sparse.linalg as spla
-from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
-
-def f(s, A, B, C):
-    return C @ np.linalg.inv(s * np.eye(A.shape[0]) - A) @ B
-
-
-def spectral_clustering(graph, edge_weights, steady_states, g, k):
-    V = len(graph)  # Number of nodes
-    E = [(i, j) for i, neighbors in enumerate(graph) for j in neighbors if i < j]  # Edges (i, j), i < j
-
-    # Step 1: Initialize distance matrix D with zeros
-    D = np.zeros((V, V))
-
-    # Step 2: Compute distance matrix D
-    for i, j in E:
-        d_ij = abs(steady_states[j] - steady_states[i]) / edge_weights[i, j]
-        D[i, j] = d_ij
-        D[j, i] = d_ij  # Since the graph is undirected
-
-    # Step 3: Compute similarity matrix S
-    S = np.zeros((V, V))
-    for i, j in E:
-        S_ij = g(D[i, j])
-        S[i, j] = S_ij
-        S[j, i] = S_ij
-
-    # Step 4: Compute degree matrix W
-    W = np.zeros((V, V))
-    for i in range(V):
-        W[i, i] = np.sum(S[i, :])
-
-    # Step 5: Compute normalized Laplacian L_sym
-    W_inv_sqrt = np.diag(1.0 / np.sqrt(np.diag(W)))
-    L_sym = np.eye(V) - W_inv_sqrt @ S @ W_inv_sqrt
-
-    # Step 6: Compute first k eigenvectors of L_sym
-    eigenvalues, eigenvectors = spla.eigsh(L_sym, k=k, which='SM')
-
-    # Step 7: Form matrix U and normalize rows
-    U = eigenvectors
-    U_normalized = U / np.linalg.norm(U, axis=1, keepdims=True)
-
-    # Step 8: Apply k-means clustering to rows of U
-    kmeans = KMeans(n_clusters=k, n_init=10, random_state=42)
-    C = kmeans.fit_predict(U_normalized)
-
-    # Output: Cluster assignments C(i) for all nodes i
-    return C
+import pandas as pd
+import os
+import networkx as nx
+from sklearn.cluster import SpectralClustering
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import LinearRegression
 
 
-def compute_a_ij_t(A, C, t):
-    V = A.shape[0]
-    a_t = np.zeros((V, V))
-    for i in range(V):
-        for j in range(V):
+def calculate_variance(D):
+    return np.var(D[D != 0])
+
+
+def compute_ricci_a(input_A, Kappa, t):
+    ret = input_A.copy()
+    for i in range(input_A.shape[0]):
+        for j in range(input_A.shape[1]):
             if i != j:
-                a_t[i, j] = (A[i, j] * np.exp(t)) / (1 + A[i, j] * C[i, j] * (np.exp(t) - 1))
-    return a_t
-
-
-def weighted_to_unweighted_laplacian(L_weighted):
-    V = L_weighted.shape[0]
-    L_unweighted = np.zeros((V, V))
-    for i in range(V):
-        for j in range(V):
-            if i != j and L_weighted[i, j] != 0:
-                L_unweighted[i, j] = -1
-        L_unweighted[i, i] = -np.sum(L_unweighted[i, :])
-    return L_unweighted
-
-
-# Example usage with the given initialization
-n = 1000
-L = np.random.uniform(0, 50, (n, n))  # Ensure non-negative off-diagonal elements for Metzler property
-L = (L + L.T) / 2  # Symmetrize L
-np.fill_diagonal(L, -np.sum(L, axis=1))  # Make diagonal negative sum of the rest of the row to ensure Metzler matrix
-
-R = np.diag(np.random.normal(10, 5, n))  # Increase mean and variance for larger values
-
-A = -R + L
-
-B = np.random.normal(10, 5, (n, 1))
-C = np.random.normal(10, 5, (1, n))
+                ret[i, j] = (input_A[i, j] * np.exp(t)) / (1 + Kappa[i, j] * (np.exp(t) - 1))
+    return ret
 
 
 def cost_function(A, clusters, x):
@@ -98,53 +33,152 @@ def cost_function(A, clusters, x):
             denom += g(d)
     return num / denom if denom != 0 else 0
 
+def f(s, A, B, C):
+    epsilon = 1e-5  # Small regularization term to avoid singular matrix error
+    try:
+        return C @ np.linalg.inv(s * np.eye(A.shape[0]) - A + epsilon * np.eye(A.shape[0])) @ B
+    except np.linalg.LinAlgError:
+        # Handle singular matrix by adding a larger regularization term
+        epsilon = 1e-3
+        return C @ np.linalg.inv(s * np.eye(A.shape[0]) - A + epsilon * np.eye(A.shape[0])) @ B
 
-u = np.random.normal(10, 5)  # Increase mean and variance for larger value
-x = -np.linalg.solve(A, B * u)
+n = 1000
 
-# Perform spectral clustering on the graph defined by A
-k_values = [10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100, 110, 120, 130, 140, 150, 200]
-all_clusterings = []
-errors = []
+# Load L, R, B, u, W if they exist, otherwise calculate them
+if os.path.exists('L_matrix.csv') and os.path.exists('R_matrix.csv') and os.path.exists('B_matrix.csv') and os.path.exists('u_value.csv') and os.path.exists('W_matrix.csv'):
+    L = pd.read_csv('L_matrix.csv').values
+    R = pd.read_csv('R_matrix.csv').values
+    B = pd.read_csv('B_matrix.csv').values
+    #u = pd.read_csv('u_value.csv').values[0, 0]
+    u = 20
+    W = pd.read_csv('W_matrix.csv').values
+    A = -R + L
+    x = -np.linalg.solve(A, B * u)
+else:
+    # Generate a random graph with an average degree of approximately 70
+    p = 70 / (n - 1)  # Probability to achieve average degree of 70
+    G = nx.gnp_random_graph(n, p)
+    while not nx.is_connected(G):  # Ensure the graph is connected
+        G = nx.gnp_random_graph(n, p)
 
-for k in k_values:
-    print(f"Performing spectral clustering with k = {k}...")
-    clusters = spectral_clustering(graph=[[j for j in range(n) if A[i, j] != 0] for i in range(n)],
-                                   edge_weights=A, steady_states=x, g=lambda d: np.exp(-d), k=k)
-    all_clusterings.append(clusters)
+    # Create adjacency matrix L from the graph
+    L = nx.to_numpy_array(G)
+    L = L * np.random.uniform(0, 50, (n, n))  # Assign random weights to edges
+    L = (L + L.T) / 2  # Symmetrize L
+    np.fill_diagonal(L, -np.sum(L, axis=1))  # Make diagonal negative sum of the rest of the row to ensure Metzler matrix
 
-    # Dimension reduction
-    T = np.zeros((n, k))
+    R = np.diag(np.random.normal(10, 5, n))  # Increase mean and variance for larger values
+
+    A = -R + L
+
+    B = random_array = np.random.rand(n, 1)
+
+    u = 20  # Increase mean and variance for larger value
+    x = -np.linalg.solve(A, B * u)
+
+    # Precompute (x[v] - x[u]) ** 2 for all pairs (u, v)
+    x_diff_squared = np.zeros((n, n))
+    for u_idx in range(n):
+        for v in range(n):
+            x_diff_squared[u_idx, v] = (x[v] - x[u_idx]) ** 2
+
+    # Compute W(i, j) using a more efficient approach
+    W = np.zeros((n, n))
+    non_zero_indices = [np.nonzero(A[i, :])[0] for i in range(n)]  # Precompute non-zero neighbors for each node
+
+    for i in range(n):
+        for j in range(n):
+            if i != j:
+                neighbors_i = non_zero_indices[i]
+                neighbors_j = non_zero_indices[j]
+                sum_neighbors = 0
+                for u in neighbors_i:
+                    for v in neighbors_j:
+                        if A[u, v] != 0:
+                            sum_neighbors += (x_diff_squared[u, v] / x[u]) + (x_diff_squared[v, j] / x[j])
+                W[i, j] = sum_neighbors
+
+    # Save L, R, B, u, W to CSV files
+    pd.DataFrame(L).to_csv('L_matrix.csv', index=False)
+    pd.DataFrame(R).to_csv('R_matrix.csv', index=False)
+    pd.DataFrame(B).to_csv('B_matrix.csv', index=False)
+    pd.DataFrame([u], columns=['u']).to_csv('u_value.csv', index=False)
+    pd.DataFrame(W).to_csv('W_matrix.csv', index=False)
+
+# Compute D matrix as D_ij = |x_j - x_i| / A_ij
+D = np.zeros((n, n))
+for i in range(n):
     for j in range(n):
-        T[j, clusters[j]] = 1
+        if A[i, j] != 0:
+            D[i, j] = np.abs(x[j] - x[i]) / A[i, j]
+        else:
+            D[i, j] = 0
 
-    # Normalize columns of T
+K = np.zeros((n,n))
+for i in range(n):
+    for j in range(n):
+        if i != j:
+            K[i, j] = W[i, j] / D[i, j]
+
+A_t = compute_ricci_a(A, K, 2.0)
+D_t = np.zeros((n, n))
+for i in range(n):
+    for j in range(n):
+        if A_t[i, j] != 0:
+            D_t[i, j] = np.abs(x[j] - x[i]) / A_t[i, j]
+        else:
+            D_t[i, j] = 0
+
+# Test various values of k and compute the corresponding errors
+k_values = [10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500]
+errors = []
+errors_t = []
+C = random_array = np.random.rand(1, n)
+
+print(calculate_variance(D))
+for k in k_values:
+    spectral = SpectralClustering(n_clusters=k, affinity='precomputed', assign_labels='kmeans', random_state=42)
+    clusters = spectral.fit_predict(D)
+    clusters_t = spectral.fit_predict(D_t)
+
+    # Create the reduction matrix T based on the clustering
+    T = np.zeros((n, k))
+    T_t = np.zeros((n, k))
     for i in range(k):
-        cluster_indices = np.where(clusters == i)[0]
-        if len(cluster_indices) > 0:
-            T[cluster_indices, i] = 1 / np.sqrt(len(cluster_indices))
+        for j in range(n):
+            if clusters[j] == i:
+                T[j, i] = 1
+            if clusters_t[j] == i:
+                T_t[j, i] = 1
 
-    # Use pseudo-inverse for reduction
-    T_pinv = np.linalg.pinv(T)
-    A_red = T_pinv @ A @ T
-    B_red = T_pinv @ B
+    # Calculate the reduced matrices
+    A_red = T.T @ A @ T
+    B_red = T.T @ B
     C_red = C @ T
 
-    error = f(0, A, B, C) - f(0, A_red, B_red, C_red)
-    errors.append(np.linalg.norm(error))
-    print(f"Error for k = {k}: {np.linalg.norm(error)}")
+    # Calculate the reduced matrices
+    A_red_t = T_t.T @ A @ T_t
+    B_red_t = T_t.T @ B
+    C_red_t = C @ T_t
 
-fig, ax1 = plt.subplots()
+    # Compute the error using function f
+    original_f = f(0, A, B, C)
+    reduced_f = f(0, A_red, B_red, C_red)
+    error = np.linalg.norm(original_f - reduced_f)
+    errors.append(error)
+    print(f"Error for spectral clustering with k = {k}: {error}")
 
-ax1.plot(k_values, errors, marker='o', color='b')
-ax1.set_xlabel('Dimension (k)')
-ax1.set_ylabel('Error', color='b')
-ax1.set_title('Error vs Dimension Reduction')
-ax1.grid(True)
+    reduced_f_t = f(0, A_red_t, B_red_t, C_red_t)
+    error_t = np.linalg.norm(original_f - reduced_f_t)
+    errors_t.append(error_t)
+    print(f"Error for spectral clustering with k = {k}: {error_t}")
 
-ax2 = ax1.twinx()
-ax2.plot(k_values, errors, marker='o', color='r')
-ax2.set_yscale('log')
-ax2.set_ylabel('Error (log scale)', color='r')
-
+# Plot the error vs k
+plt.figure(figsize=(10, 6))
+plt.plot(k_values, errors, marker='o', linestyle='-', color='b')
+plt.plot(k_values, errors_t, marker='x', linestyle='dotted', color='g')
+plt.xlabel('Number of Clusters (k)')
+plt.ylabel('Error')
+plt.title('Error vs Number of Clusters for Spectral Clustering')
+plt.grid(True)
 plt.show()
