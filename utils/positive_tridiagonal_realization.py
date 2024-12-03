@@ -2,6 +2,9 @@ import numpy as np
 
 
 class PositiveTridiagonalRealization:
+    def __init__(self):
+        pass
+
     @staticmethod
     def householder_transformation(b):
         """
