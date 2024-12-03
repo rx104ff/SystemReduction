@@ -25,11 +25,11 @@ def find_off_diagonal_negatives(matrix):
 
 # Load L, R, B, u, W if they exist, otherwise calculate them
 if os.path.exists('L_matrix.csv') and os.path.exists('R_matrix.csv') and os.path.exists('B_matrix.csv') and os.path.exists('u_value.csv') and os.path.exists('W_matrix.csv'):
-    L = pd.read_csv('L_matrix.csv').values
-    R = pd.read_csv('R_matrix.csv').values
-    B = pd.read_csv('B_matrix.csv').values
-    u = pd.read_csv('u_value.csv').values[0, 0]
-    W = pd.read_csv('W_matrix.csv').values
+    L = pd.read_csv('../L_matrix.csv').values
+    R = pd.read_csv('../R_matrix.csv').values
+    B = pd.read_csv('../B_matrix.csv').values
+    u = pd.read_csv('../u_value.csv').values[0, 0]
+    W = pd.read_csv('../W_matrix.csv').values
     A = -R + L
 else:
     # Generate a random graph with an average degree of approximately 70
