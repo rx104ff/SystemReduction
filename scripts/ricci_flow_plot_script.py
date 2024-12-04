@@ -1,29 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from utils.ricci_flow import RicciFlow
 
 # Number of points for A, W, and t
 num_points = 500
-
-
-# Function definitions
-def compute_a_t(A, W, t):
-    """
-    Compute a(i,j)^t = Aij * e^t / (1 + Aij * W(i,j) * (e^t - 1)).
-    """
-    numerator = A * np.exp(t)
-    denominator = 1 + A * W * (np.exp(t) - 1)
-    return numerator / denominator
-
-
-def compute_da_t(A, W, t):
-    """
-    Compute the derivative of a(i,j)^t with respect to t:
-    da(i,j)^t/dt = |(Aij * e^t * (Aij * Wij - 1)) / (1 + Aij * Wij * (e^t - 1))^2|
-    """
-    numerator = A * np.exp(t) * (A * W - 1)
-    denominator = (1 + A * W * (np.exp(t) - 1)) ** 2
-    return np.abs(numerator / denominator)
-
 
 # Generate random A and W values, ensuring half have Aij * W(i, j) > 1 and half < 1
 np.random.seed(42)  # For reproducibility
@@ -54,8 +34,8 @@ for i in range(num_points):
     W = W_values[i]
 
     # Compute a_t and da_t
-    a_vector = compute_a_t(A, W, t_values)
-    da_vector = compute_da_t(A, W, t_values)
+    a_vector = RicciFlow.compute_a_t(A, W, t_values)
+    da_vector = RicciFlow.compute_da_t(A, W, t_values)
 
     # Plot results
     plt.plot(t_values, a_vector, linestyle="dashed", color="gray", linewidth=0.5, alpha=0.5)

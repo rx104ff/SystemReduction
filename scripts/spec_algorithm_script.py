@@ -31,6 +31,7 @@ def cost_function(A, clusters, x):
             denom += g(d)
     return num / denom if denom != 0 else 0
 
+
 def f(s, A, B, C):
     epsilon = 1e-5  # Small regularization term to avoid singular matrix error
     try:
@@ -39,6 +40,7 @@ def f(s, A, B, C):
         # Handle singular matrix by adding a larger regularization term
         epsilon = 1e-3
         return C @ np.linalg.inv(s * np.eye(A.shape[0]) - A + epsilon * np.eye(A.shape[0])) @ B
+
 
 n = 1000
 

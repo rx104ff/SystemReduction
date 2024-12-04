@@ -52,7 +52,7 @@ class NetworkDB:
         with self.connection:
             self.connection.execute('''
                 INSERT INTO network (n, d, lp_first, lp_second, rp_first, rp_second, timestamp, file_name)
-                VALUES (?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (n, d, lp[0], lp[1], rp[0], rp[1], datetime.now().isoformat(), file_name))
 
         return file_name
