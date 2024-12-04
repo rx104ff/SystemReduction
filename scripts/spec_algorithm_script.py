@@ -4,8 +4,6 @@ import pandas as pd
 import os
 import networkx as nx
 from sklearn.cluster import SpectralClustering
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn.linear_model import LinearRegression
 
 
 def calculate_variance(D):

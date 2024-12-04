@@ -5,7 +5,6 @@ import os
 import networkx as nx
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.linear_model import LinearRegression
-from scipy.optimize import minimize
 from scipy.sparse.csgraph import connected_components
 
 n = 1000
@@ -225,6 +224,7 @@ A_reduced = C_matrix.T @ A @ C_matrix
 
 s = 0
 
+
 def f(s, A, B, C):
     epsilon = 1e-5  # Small regularization term to avoid singular matrix error
     try:
@@ -233,6 +233,7 @@ def f(s, A, B, C):
         # Handle singular matrix by adding a larger regularization term
         epsilon = 1e-3
         return C @ np.linalg.inv(s * np.eye(A.shape[0]) - A + epsilon * np.eye(A.shape[0])) @ B
+
 
 # Clustering for A^t
 x_t = -np.linalg.solve(A_t + 1e-5 * np.eye(A_t.shape[0]), B * u)  # Regularize to avoid singular matrix
