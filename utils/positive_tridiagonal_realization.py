@@ -6,69 +6,51 @@ class PositiveTridiagonalRealization:
         pass
 
     @staticmethod
-    def householder_transformation(b):
-        """
-        Constructs a Householder transformation matrix H such that H^T b results
-        in a vector with only the first entry non-zero and positive.
-
-        Parameters:
-            b (ndarray): Input vector.
-
-        Returns:
-            H (ndarray): Orthogonal transformation matrix.
-        """
-        n = len(b)
-        e1 = np.zeros_like(b)
-        e1[0] = np.linalg.norm(b)
-        v = b - e1
-        v /= np.linalg.norm(v)  # Normalize v
-
-        H = np.eye(n) - 2 * np.outer(v, v)  # Householder matrix
-        return H
+    def householder_by_vec(input_x, input_y):
+        assert (len(input_x) == len(input_y))
+        if len(input_x) == 1:
+            return np.eye(1)
+        dim = input_x.shape[0]
+        ret = np.eye(dim) - 2 * np.outer(input_x - input_y, input_x - input_y) / (
+                    np.linalg.norm(input_x - input_y) ** 2)
+        return ret
 
     @staticmethod
-    def positive_tridiagonal_realization(A, b):
-        """
-        Compute a positive tridiagonal realization of the pair (A, b).
+    def tridiagonalization_k(a, b, k):
+        dim = len(b)
+        assert (k > 1)
+        assert (k <= dim)
 
-        Parameters:
-            A (ndarray): Symmetric positive definite matrix of size (n, n).
-            b (ndarray): Vector of size (n,) corresponding to the network.
+        b_tilde_1 = np.zeros(dim)
+        b_tilde_1[0] = np.linalg.norm(b)
 
-        Returns:
-            A_hat (ndarray): Tridiagonal matrix with positive subdiagonal entries.
-            b_hat (ndarray): Transformed vector with a single non-zero positive entry at the beginning.
-        """
-        n = A.shape[0]
-        assert A.shape == (n, n), "Matrix A must be square."
-        assert np.allclose(A, A.T), "Matrix A must be symmetric."
-        assert b.shape == (n,), "Vector b must have the same length as A's dimensions."
+        h_0 = PositiveTridiagonalRealization.householder_by_vec(b, b_tilde_1)
+        a_1 = h_0 @ a @ h_0
 
-        # Construct the Householder matrix H
-        H = PositiveTridiagonalRealization.householder_transformation(b)
+        a_k = a_1
+        b_k = b_tilde_1
+        ret_h = h_0
 
-        # Transform A to tridiagonal form
-        A_hat = H.T @ A @ H
+        for i in range(1, k):
+            x = a_k[i - 1, i::]
+            x_tilde = np.zeros(len(x))
+            x_tilde[0] = np.linalg.norm(x)
+            h_k_tilde = PositiveTridiagonalRealization.householder_by_vec(x, x_tilde)
 
-        # Adjust beta values to ensure positivity
-        alpha = np.diag(A_hat)
-        beta = np.diag(A_hat, k=1)
-        beta = np.abs(beta)  # Ensure positive subdiagonal entries
+            eye_k = np.eye(i)
+            h_k = np.block([
+                [eye_k, np.zeros((eye_k.shape[0], h_k_tilde.shape[1]))],
+                [np.zeros((h_k_tilde.shape[0], eye_k.shape[1])), h_k_tilde]
+            ])
+            a_k = h_k @ a_k @ h_k
+            b_k = h_k @ b_k
+            ret_h = ret_h @ h_k
 
-        # Reconstruct the tridiagonal A_hat with adjusted beta
-        A_hat_tridiagonal = np.zeros_like(A_hat)
-        np.fill_diagonal(A_hat_tridiagonal, alpha)
-        np.fill_diagonal(A_hat_tridiagonal[1:], beta)
-        np.fill_diagonal(A_hat_tridiagonal[:, 1:], beta)
+        return a_k, b_k, ret_h
 
-        # Transform b to b_hat
-        b_hat = H.T @ b
-
-        # Ensure b_hat has only the first entry non-zero and positive
-        b_hat[1:] = 0
-        b_hat[0] = np.linalg.norm(b)  # First entry must be positive
-
-        return A_hat_tridiagonal, b_hat
+    @staticmethod
+    def tridiagonalization(a, b):
+        return PositiveTridiagonalRealization.tridiagonalization_k(a, b, len(b))
 
     @staticmethod
     def example_usage():
@@ -82,7 +64,7 @@ class PositiveTridiagonalRealization:
         b = np.array([1, 2, 3])
 
         # Compute the positive tridiagonal realization
-        A_hat, b_hat = PositiveTridiagonalRealization.positive_tridiagonal_realization(A, b)
+        A_hat, b_hat, _ = PositiveTridiagonalRealization.tridiagonalization(A, b)
 
         print("Tridiagonal Matrix A_hat:")
         print(A_hat)

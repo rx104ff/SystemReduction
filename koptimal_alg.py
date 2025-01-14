@@ -2,6 +2,7 @@ from utils.ricci_flow import RicciFlow
 from bi_network import BidirectionalNetwork
 import numpy as np
 from numpy.typing import NDArray
+from itertools import combinations
 
 
 class KOptimal:
@@ -67,3 +68,42 @@ class KOptimal:
                 ret = indices
             else:
                 return k, ret
+
+    def brutal_force(self, k):
+        # Function to compute truncation matrix T
+        def compute_truncation_matrix(index, n):
+            T = np.zeros((n, len(index)))
+            for idx, col in enumerate(index):
+                T[col, idx] = 1
+            return T
+
+        # Brute force search for optimal T
+        min_cost = float("inf")
+        best_T = None
+        best_indices = None
+
+        for indices in combinations(range(self.network.n), k):
+            T = compute_truncation_matrix(indices, self.network.n)
+            a_truncated = T.T @ self.network.a @ T
+            b_truncated = T.T @ self.network.b
+            try:
+                cost = np.linalg.norm(np.linalg.inv(-self.network.a) @ self.network.b -
+                                      T @ np.linalg.inv(-a_truncated) @ b_truncated)
+            except np.linalg.LinAlgError:
+                cost = float("inf")  # Skip singular matrices
+
+            if cost < min_cost:
+                min_cost = cost
+                best_T = T
+                best_indices = indices
+
+        return best_T, best_indices
+
+    def close_region(self):
+        pass
+
+    def far_region(self):
+        pass
+
+    def complete_network(self):
+        pass
